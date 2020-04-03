@@ -2420,8 +2420,6 @@ static UniValue walletpassphrase(const Config &config,
         pwallet->TopUpKeyPool();
 
         pwallet->nRelockTime = GetTime() + nSleepTime;
-        RPCRunLater(strprintf("lockwallet(%s)", pwallet->GetName()),
-                    std::bind(LockWallet, pwallet), nSleepTime);
     }
 
     // rpcRunLater must be called without cs_wallet held otherwise a deadlock
@@ -2429,17 +2427,9 @@ static UniValue walletpassphrase(const Config &config,
     // previous timer (and waits for the callback to finish if already running)
     // and the callback locks cs_wallet.
     AssertLockNotHeld(wallet->cs_wallet);
-    // Keep a weak pointer to the wallet so that it is possible to unload the
-    // wallet before the following callback is called. If a valid shared pointer
-    // is acquired in the callback then the wallet is still loaded.
-    std::weak_ptr<CWallet> weak_wallet = wallet;
-    pwallet->chain().rpcRunLater(strprintf("lockwallet(%s)", pwallet->GetName()), [weak_wallet] {
-        if (auto shared_wallet = weak_wallet.lock()) {
-            LOCK(shared_wallet->cs_wallet);
-            shared_wallet->Lock();
-            shared_wallet->nRelockTime = 0;
-        }
-    }, nSleepTime);
+
+    RPCRunLater(strprintf("lockwallet(%s)", pwallet->GetName()),
+                std::bind(LockWallet, pwallet), nSleepTime);
 
     return NullUniValue;
 }
